@@ -2432,7 +2432,7 @@ static EFI_STATUS image_start(
 
         efivar_set_time_usec(MAKE_GUID_PTR(LOADER), u"LoaderTimeExecUSec", 0);
         err = BS->StartImage(image, NULL, NULL);
-        graphics_mode(true);
+        graphics_mode(false);
         if (err == EFI_SUCCESS)
                 return EFI_SUCCESS;
 
@@ -2449,7 +2449,7 @@ static EFI_STATUS image_start(
                                 (EFI_IMAGE_ENTRY_POINT) ((uint8_t *) loaded_image->ImageBase + compat_address);
 
                         err = kernel_entry(image, ST);
-                        graphics_mode(true);
+                        graphics_mode(false);
                         if (err == EFI_SUCCESS)
                                 return EFI_SUCCESS;
                 } else

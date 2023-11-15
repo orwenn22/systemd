@@ -15,6 +15,7 @@
 #include "pe.h"
 #include "proto/block-io.h"
 #include "proto/device-path.h"
+#include "proto/graphics-output.h"
 #include "proto/simple-text-io.h"
 #include "random-seed.h"
 #include "sbat.h"
@@ -25,6 +26,7 @@
 #include "util.h"
 #include "version.h"
 #include "vmm.h"
+
 
 /* Magic string for recognizing our own binaries */
 #define SD_MAGIC "#### LoaderInfo: systemd-boot " GIT_VERSION " ####"
@@ -650,6 +652,8 @@ static EFI_STATUS reboot_into_firmware(void) {
         return reboot_system();
 }
 
+#include "background_image.h"
+
 static bool menu_run(
                 Config *config,
                 BootEntry **chosen_entry,
@@ -681,7 +685,56 @@ static bool menu_run(
                 ACTION_QUIT,            /* Return to the firmware */
         } action = ACTION_CONTINUE;
 
-        graphics_mode(false);
+        EFI_GRAPHICS_OUTPUT_BLT_PIXEL *background;
+        //EFI_GRAPHICS_OUTPUT_BLT_PIXEL background = {};
+
+        EFI_GRAPHICS_OUTPUT_PROTOCOL *GraphicsOutput = NULL;
+
+        graphics_mode(true);
+
+
+        err = BS->LocateProtocol(MAKE_GUID_PTR(EFI_GRAPHICS_OUTPUT_PROTOCOL), NULL, (void **) &GraphicsOutput);
+        if (err != EFI_SUCCESS)
+                return err;
+
+        background = xmalloc(128 * 128 * sizeof(EFI_GRAPHICS_OUTPUT_BLT_PIXEL));
+
+        for(int y = 0; y < 128;y++) {
+                for(int x = 0; x < 128; x++) {
+                        background[x+y*128].Red   = x*2;
+                        background[x+y*128].Blue  = y*2;
+                        background[x+y*128].Green = (x+y)*1;
+                }
+        }
+
+        /*
+        background.Red = 0xff;
+        background.Green = 0x00;
+        background.Blue = 0x00;
+        err = GraphicsOutput->Blt(
+                        GraphicsOutput, &background
+                        EfiBltVideoFill, 0, 0, 0, 0,
+                        GraphicsOutput->Mode->Info->HorizontalResolution,
+                        GraphicsOutput->Mode->Info->VerticalResolution, 0);
+        */
+
+        err = GraphicsOutput->Blt(
+                        GraphicsOutput, background,
+                        EfiBltBufferToVideo, 0, 0, 0, 0,
+                        128,128, 0);
+
+        err = GraphicsOutput->Blt(
+                        GraphicsOutput, (EFI_GRAPHICS_OUTPUT_BLT_PIXEL *)bg_buf,
+                        EfiBltBufferToVideo, 0, 0, 0, 0,
+                        bg_w,bg_h, 0);
+
+
+
+        free((void *)background);
+
+        //while (1) {}
+
+
         ST->ConIn->Reset(ST->ConIn, false);
         ST->ConOut->EnableCursor(ST->ConOut, false);
 
@@ -698,6 +751,7 @@ static bool menu_run(
         size_t line_width = 0, entry_padding = 3;
         while (IN_SET(action, ACTION_CONTINUE, ACTION_FIRMWARE_SETUP)) {
                 uint64_t key;
+
 
                 if (new_mode) {
                         console_query_mode(&x_max, &y_max);
@@ -771,8 +825,13 @@ static bool menu_run(
                         clear = true;
                 }
 
+
                 if (clear) {
                         clear_screen(COLOR_NORMAL);
+                        err = GraphicsOutput->Blt(
+                                        GraphicsOutput, (EFI_GRAPHICS_OUTPUT_BLT_PIXEL *)bg_buf,
+                                        EfiBltBufferToVideo, 0, 0, 0, 0,
+                                        bg_w, bg_h, 0);
                         clear = false;
                         refresh = true;
                 }
@@ -818,16 +877,7 @@ static bool menu_run(
                         size_t len = strnlen16(status, x_max - 1);
                         size_t x = (x_max - len) / 2;
                         status[len] = '\0';
-                        print_at(0, y_status, COLOR_NORMAL, clearline + x_max - x);
-                        ST->ConOut->OutputString(ST->ConOut, status);
-                        ST->ConOut->OutputString(ST->ConOut, clearline + 1 + x + len);
-
-                        len = MIN(MAX(len, line_width) + 2 * entry_padding, x_max);
-                        x = (x_max - len) / 2;
-                        print_at(x, y_status - 1, COLOR_NORMAL, separator + x_max - len);
-                } else {
-                        print_at(0, y_status - 1, COLOR_NORMAL, clearline);
-                        print_at(0, y_status, COLOR_NORMAL, clearline + 1); /* See comment above. */
+                        print_at(x, y_status, COLOR_NORMAL, status);
                 }
 
                 /* Beep several times so that the selected entry can be distinguished. */
@@ -858,7 +908,12 @@ static bool menu_run(
                 timeout_remain = 0;
 
                 /* clear status after keystroke */
-                status = mfree(status);
+                if(status != NULL) {
+                        status = mfree(status);
+                        status = NULL;
+                        clear = true;
+                }
+
 
                 idx_highlight_prev = idx_highlight;
 
@@ -2377,7 +2432,7 @@ static EFI_STATUS image_start(
 
         efivar_set_time_usec(MAKE_GUID_PTR(LOADER), u"LoaderTimeExecUSec", 0);
         err = BS->StartImage(image, NULL, NULL);
-        graphics_mode(false);
+        graphics_mode(true);
         if (err == EFI_SUCCESS)
                 return EFI_SUCCESS;
 
@@ -2394,7 +2449,7 @@ static EFI_STATUS image_start(
                                 (EFI_IMAGE_ENTRY_POINT) ((uint8_t *) loaded_image->ImageBase + compat_address);
 
                         err = kernel_entry(image, ST);
-                        graphics_mode(false);
+                        graphics_mode(true);
                         if (err == EFI_SUCCESS)
                                 return EFI_SUCCESS;
                 } else

@@ -1190,8 +1190,16 @@ static BootEntry* boot_entry_free(BootEntry *entry) {
 DEFINE_TRIVIAL_CLEANUP_FUNC(BootEntry *, boot_entry_free);
 
 static bool parse_console_color(const char *v, uint8_t *color_out){
-        const char *color_names[] = {"black", "blue", "green", "cyan", "red", "magenta", "brown", "lightgray", "bright", "darkgray", "lightblue", "lightgreen", "lightcyan", "lightred", "lightmagenta", "yellow", "white"};
-        uint8_t color_values[] = {EFI_BLACK, EFI_BLUE, EFI_GREEN, EFI_CYAN, EFI_RED, EFI_MAGENTA, EFI_BROWN, EFI_LIGHTGRAY, EFI_BRIGHT, EFI_DARKGRAY, EFI_LIGHTBLUE, EFI_LIGHTGREEN, EFI_LIGHTCYAN, EFI_LIGHTRED, EFI_LIGHTMAGENTA, EFI_YELLOW, EFI_WHITE};
+        const char *color_names[] = {
+                "black", "blue", "green", "cyan",
+                "red", "magenta", "brown", "lightgray",
+                "bright", "darkgray", "lightblue", "lightgreen",
+                "lightcyan", "lightred", "lightmagenta", "yellow", "white"};;
+        uint8_t color_values[] = {
+                EFI_BLACK, EFI_BLUE, EFI_GREEN, EFI_CYAN,
+                EFI_RED, EFI_MAGENTA, EFI_BROWN, EFI_LIGHTGRAY,
+                EFI_BRIGHT, EFI_DARKGRAY, EFI_LIGHTBLUE, EFI_LIGHTGREEN,
+                EFI_LIGHTCYAN, EFI_LIGHTRED, EFI_LIGHTMAGENTA, EFI_YELLOW, EFI_WHITE};
         for(int i = 0; i < 17; i++) {
                 if(streq8(v, color_names[i])) {
                         *color_out = color_values[i];
